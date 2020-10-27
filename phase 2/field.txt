@@ -1,0 +1,130 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[649]:
+
+
+import numpy as np
+import math
+import cv2
+                # we will read the image directly as a grayscale image
+img = cv2.imread('field 1-3.jpg', cv2.IMREAD_UNCHANGED) # gaussian filter is not used explicitly as it is already included in the canny function itself
+#img = cv2.imread('field 1-3.jpg', cv2.IMREAD_UNCHANGED)
+roi = img[600:1800, 50:440]
+#roi = img[1000:1400, 100:440]
+roi = cv2.GaussianBlur(roi,(3,3),0)
+roi2 = roi.copy()
+roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+
+#b,g,r = cv2.split(roi)
+#roi = cv2.Sobel(roi,cv2.CV_8U,1,1)
+#roi = cv2.adaptiveThreshold(roi,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,9,10)
+roi = cv2.Canny(roi,100,550,3)
+
+
+# In[650]:
+
+
+pixel_to_metric = 134.0596881
+initial_pole =  464.0387914819
+intial_angle = 89.26
+
+
+# In[651]:
+
+
+lines = cv2.HoughLinesP(roi,1,np.pi/180,100,maxLineGap = 100)  # HoughLines function gives an output of a 2d-array containing rho and theta values for the corresponding line equations which crossed the vote limit of 200.  
+no_of_lines = len(lines)
+print(lines)
+
+
+# In[652]:
+
+
+edges = []
+angles= []
+lengths = []
+for i in range(no_of_lines):
+    if ((lines[i][0][3]-lines[i][0][1]) != 0 and (lines[i][0][2]-lines[i][0][0]) != 0):
+        ang = abs(math.degrees(math.atan((lines[i][0][3]-lines[i][0][1])/(lines[i][0][2]-lines[i][0][0]))))
+        if (abs(90 - ang) <= 5):
+            edges.append(lines[i][0])
+            angles.append(ang)
+            lengths.append(math.sqrt((lines[i][0][2]-lines[i][0][0])**2 + (lines[i][0][3]-lines[i][0][1])**2))
+    elif ((lines[i][0][2]-lines[i][0][0]) == 0):
+        edges.append(lines[i][0])
+        angles.append(90)
+        lengths.append(math.sqrt((lines[i][0][2]-lines[i][0][0])**2 + (lines[i][0][3]-lines[i][0][1])**2))
+    #else:
+        #angles.append(0)
+        #lengths.append(sqrt((lines[i][0][2]-lines[i][0][0])**2 + (lines[i][0][3]-lines[i][0][1])**2))
+        
+temp=angles.copy()
+print(edges,angles)
+
+
+# In[653]:
+
+
+for i in range(len(edges)):
+    cv2.line(roi2, (edges[i][0],edges[i][1]), (edges[i][2],edges[i][3]), (0,255,0), 1)
+#cv2.line(roi2, (lines[2][0][0],lines[2][0][1]), (lines[2][0][2],lines[2][0][3]), (0,255,0), 1)
+
+
+# In[654]:
+
+
+index = [angles.index(max(angles))]
+temp[index[0]] = 0
+index.append(temp.index(max(temp)))
+
+
+if (abs(lengths[0]-lengths[1]) <= 20):
+    start_point = (int((edges[index[0]][0]+edges[index[1]][0])/2), int((edges[index[0]][1]+edges[index[1]][1])/2))
+    end_point = (int((edges[index[0]][2]+edges[index[1]][2])/2), int((edges[index[0]][3]+edges[index[1]][3])/2))
+else:
+    start_point = (edges[lengths.index(max(lengths))][0],edges[lengths.index(max(lengths))][1])
+    end_point = (edges[lengths.index(max(lengths))][2], edges[lengths.index(max(lengths))][3])
+
+cv2.line(roi2, start_point, end_point, (0,255,0), 1)
+
+
+# In[655]:
+
+
+pole_length = ((start_point[0]-end_point[0])**2 + (start_point[1]-end_point[1])**2)**0.5
+snow_level = initial_pole - pole_length
+
+snow_level_metric = snow_level/pixel_to_metric  #angle of the pole is neglected because only edges with 90 +- 5 is taken and in worst case sin(85) = 0.99
+snow_level_metric = round(snow_level_metric,5)
+print("snow_level_metric:",snow_level_metric)
+
+
+# In[656]:
+
+
+cv2.putText(roi2, str(snow_level_metric), (30,434), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
+cv2.putText(roi2, "mts", (30,454), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
+
+
+# In[657]:
+
+
+cv2.namedWindow('roi',cv2.WINDOW_NORMAL)
+cv2.imshow('roi',roi2)
+
+cv2.waitKey(0)
+
+
+# In[658]:
+
+
+cv2.imwrite("field 1-3 edited.jpg", roi2)
+cv2.imwrite("field 1-3 binary.jpg", roi)
+
+
+# In[ ]:
+
+
+
+
